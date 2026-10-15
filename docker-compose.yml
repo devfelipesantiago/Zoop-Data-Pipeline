@@ -1,0 +1,9 @@
+services:
+  postgres_oltp:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: zoop_oltp
+      POSTGRES_USER: zoop
+      POSTGRES_PASSWORD: zoop123
+    ports:
+      - "5432:5432"
