@@ -7,3 +7,12 @@ services:
       POSTGRES_PASSWORD: zoop123
     ports:
       - "5432:5432"
+  postgres_dw:
+    image: postgres:16
+    container_name: zoop_dw
+    environment:
+      POSTGRES_DB: zoop_dw
+      POSTGRES_USER: zoop
+      POSTGRES_PASSWORD: zoop123
+    ports:
+      - "5433:5432"
