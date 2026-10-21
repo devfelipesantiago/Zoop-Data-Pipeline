@@ -1,0 +1,7 @@
+id_cliente,nome,email,cidade,estado,data_nascimento,data_atualizacao
+1,Ana Prado,ana.prado@mail.com,Sao Paulo,SP,1990-04-12,2024-03-15
+4,Diego Rocha,diego.rocha@mail.com,Joao Pessoa,PB,1979-07-21,2024-05-02
+6,Felipe Sá,felipe.sa@mail.com,Uberlandia,MG,1992-01-08,2024-04-15
+9,Isabela Cruz,isabela.cruz@mail.com,Belem,PA,1983-03-27,2024-03-20
+12,Lucas Pinto,lucas.pinto@mail.com,Florianopolis,SC,1987-08-23,2024-03-10
+18,Rafael Vidal,rafael.vidal@mail.com,Boa Vista,RR,1997-12-13,2024-02-20

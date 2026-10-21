@@ -1,0 +1,21 @@
+id_cliente,nome,email,cidade,estado,data_nascimento
+1,Ana Prado,ana.prado@mail.com,Niteroi,RJ,1990-04-12
+2,Bruno Alves,bruno.alves@mail.com,Santos,SP,1985-11-30
+3,Carla Dias,carla.dias@mail.com,Curitiba,PR,1998-02-05
+4,Diego Rocha,diego.rocha@mail.com,Recife,PE,1979-07-21
+5,Elisa Nunes,elisa.nunes@mail.com,Salvador,BA,2000-09-15
+6,Felipe Sá,felipe.sa@mail.com,Belo Horizonte,MG,1992-01-08
+7,Gabriela Melo,gabriela.melo@mail.com,Porto Alegre,RS,1988-06-19
+8,Hugo Lima,hugo.lima@mail.com,Fortaleza,CE,1995-12-01
+9,Isabela Cruz,isabela.cruz@mail.com,Manaus,AM,1983-03-27
+10,João Reis,joao.reis@mail.com,Niteroi,RJ,2001-10-10
+11,Karina Souza,karina.souza@mail.com,Santos,SP,1991-05-14
+12,Lucas Pinto,lucas.pinto@mail.com,Curitiba,PR,1987-08-23
+13,Marina Teles,marina.teles@mail.com,Recife,PE,1996-04-02
+14,Nuno Barros,nuno.barros@mail.com,Salvador,BA,1980-11-11
+15,Olivia Faria,olivia.faria@mail.com,Belo Horizonte,MG,1999-07-07
+16,Paulo Gomes,paulo.gomes@mail.com,Porto Alegre,RS,1984-02-18
+17,Quesia Lopes,quesia.lopes@mail.com,Fortaleza,CE,1993-09-29
+18,Rafael Vidal,rafael.vidal@mail.com,Manaus,AM,1997-12-13
+19,Sofia Antunes,sofia.antunes@mail.com,Niteroi,RJ,1986-03-03
+20,Tiago Neves,tiago.neves@mail.com,Santos,SP,1994-06-25
