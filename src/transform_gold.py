@@ -3,19 +3,21 @@ import os
 import logging
 
 
-def transformar_ouro():
-    logging.info("Iniciando agregação para a Camada Ouro...")
+def transformar_gold():
+    logging.info("Iniciando agregação para a Camada gold...")
     try:
-        os.makedirs("datalake/ouro", exist_ok=True)
+        os.makedirs("datalake/gold", exist_ok=True)
 
-        df_prata = pd.read_parquet("datalake/prata/dados_consolidados.parquet")
+        df_silver = pd.read_parquet("datalake/silver/dados_consolidados.parquet")
 
         # Criando coluna de ano-mês para agrupamento
-        df_prata["ano_mes"] = df_prata["data_pedido"].dt.to_period("M").astype(str)
-        df_prata["faturamento_total"] = df_prata["quantidade"] * df_prata["valor_item"]
+        df_silver["ano_mes"] = df_silver["data_pedido"].dt.to_period("M").astype(str)
+        df_silver["faturamento_total"] = (
+            df_silver["quantidade"] * df_silver["valor_item"]
+        )
 
         # Calculando valor em atraso apenas para os pedidos derivados como ATRASADOS
-        df_prata["valor_em_atraso"] = df_prata.apply(
+        df_silver["valor_em_atraso"] = df_silver.apply(
             lambda r: (
                 r["faturamento_total"] if r["status_derivado"] == "ATRASADO" else 0
             ),
@@ -23,8 +25,8 @@ def transformar_ouro():
         )
 
         # Agregação por mês e categoria
-        df_ouro = (
-            df_prata.groupby(["ano_mes", "categoria"])
+        df_gold = (
+            df_silver.groupby(["ano_mes", "categoria"])
             .agg(
                 faturamento_total=("faturamento_total", "sum"),
                 quantidade_vendida=("quantidade", "sum"),
@@ -33,12 +35,12 @@ def transformar_ouro():
             .reset_index()
         )
 
-        # Salvando o resultado na Camada Ouro
-        df_ouro.to_parquet(
-            "datalake/ouro/indicadores_mes_categoria.parquet",
+        # Salvando o resultado na Camada gold
+        df_gold.to_parquet(
+            "datalake/gold/indicadores_mes_categoria.parquet",
             engine="pyarrow",
             index=False,
         )
-        logging.info("Camada Ouro gerada com sucesso.")
+        logging.info("Camada gold gerada com sucesso.")
     except Exception as e:
-        logging.error("Erro ao gerar a Camada Ouro: %s", e)
+        logging.error("Erro ao gerar a Camada gold: %s", e)
