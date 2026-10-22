@@ -1,6 +1,6 @@
 import pandas as pd
 import logging
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 engine_dw = create_engine("postgresql+psycopg2://zoop:zoop123@localhost:5432/zoop_dw")
 
@@ -118,20 +118,39 @@ def carregar_dimensoes_e_fatos():
         logging.error(f"Erro durante a carga do DW: {e}")
 
 
-def processar_scd2_clientes():
+def transformar_scd2_clientes():
     logging.info("Aplicando atualizações cadastrais (SCD Tipo 2)...")
     try:
         # Lendo o arquivo que simula mudanças cadastrais posteriores
         df_updates = pd.read_csv("dados/clientes_atualizacao.csv")
         dim_cliente = pd.read_sql("SELECT * FROM dim_cliente", con=engine_dw)
 
+        # Descobre o último SK gerado para continuar a sequência numéricamente
+        max_sk_df = pd.read_sql(
+            "SELECT MAX(sk_cliente) as max_sk FROM dim_cliente", con=engine_dw
+        )
+        max_sk = (
+            max_sk_df.iloc[0]["max_sk"]
+            if not pd.isna(max_sk_df.iloc[0]["max_sk"])
+            else 0
+        )
+
         novos_registros = []
 
-        for _, row in df_updates.iterrows():
-            cod = row["id_cliente"]
-            data_atu = pd.to_datetime(row["data_atualizacao"])
+        with engine_dw.begin() as connection:
+            for _, row in df_updates.iterrows():
+                cod = row["id_cliente"]
+                data_atu = pd.to_datetime(row["data_atualizacao"])
 
-            # 1. Encontrar o registro antigo no DataFrame em memória e fechar a vigência
+            # Fechar a vigência do registro antigo diretamente via comando SQL
+            query_update = text("""
+                UPDATE dim_cliente
+                SET valid_to = :data, flag_vigencia = False
+                WHERE cod_cliente = :cod AND flag_vigencia = True
+            """)
+            connection.execute(query_update, {"data": data_atu, "cod": cod})
+
+            # Encontrar o registro antigo no DataFrame em memória e fechar a vigência
             idx_antigo = dim_cliente.index[
                 (dim_cliente["cod_cliente"] == cod)
                 & (dim_cliente["flag_vigencia"] == True)
@@ -140,11 +159,9 @@ def processar_scd2_clientes():
                 dim_cliente.at[idx_antigo[0], "valid_to"] = data_atu
                 dim_cliente.at[idx_antigo[0], "flag_vigencia"] = False
 
-            # 2. Criar a nova versão do registro
+            # Criar a nova versão do registro
             novo_registro = {
-                "sk_cliente": dim_cliente["sk_cliente"].max()
-                + len(novos_registros)
-                + 1,
+                "sk_cliente": int(max_sk) + len(novos_registros) + 1,
                 "cod_cliente": cod,
                 "nome": row["nome"],
                 "cidade": row["cidade"],
@@ -157,14 +174,13 @@ def processar_scd2_clientes():
 
         # Adicionando as novas linhas ao DataFrame
         if novos_registros:
-            dim_cliente = pd.concat(
-                [dim_cliente, pd.DataFrame(novos_registros)], ignore_index=True
+            df_novos = pd.DataFrame(novos_registros)
+            df_novos.to_sql(
+                "dim_cliente", con=engine_dw, if_exists="append", index=False
             )
 
-        # Atualizando o banco de dados com a tabela completa de clientes (SCD2)
-        dim_cliente.to_sql(
-            "dim_cliente", con=engine_dw, if_exists="replace", index=False
+        logging.info(
+            "Histórico de clientes atualizado com sucesso sem quebrar as restrições do banco."
         )
-        logging.info("Histórico de clientes atualizado.")
     except Exception as e:
         logging.error(f"Erro durante a atualização de clientes (SCD2): {e}")
