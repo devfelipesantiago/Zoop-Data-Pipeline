@@ -22,16 +22,16 @@ def transformar_silver():
         df_item = df_item[(df_item["quantidade"] >= 0) & (df_item["valor_item"] >= 0)]
         df_pedido = df_pedido.dropna(subset=["id_cliente"])
 
+        # Padronização de datas
+        df_pedido["data_pedido"] = pd.to_datetime(df_pedido["data_pedido"])
+        df_pedido["data_vencimento"] = pd.to_datetime(df_pedido["data_vencimento"])
+
         # Junção das tabelas (join)
         df_prata = (
             df_item.merge(df_pedido, on="id_pedido", how="left")
             .merge(df_cliente, on="id_cliente", how="left")
             .merge(df_produto, on="id_produto", how="left")
         )
-
-        # Padronização de datas
-        df_pedido["data_pedido"] = pd.to_datetime(df_pedido["data_pedido"])
-        df_pedido["data_vencimento"] = pd.to_datetime(df_pedido["data_vencimento"])
 
         # Função para calcular dias de atraso (apenas para não pagos)
         def calcular_dias_atraso(row):
