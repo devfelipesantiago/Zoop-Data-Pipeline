@@ -3,8 +3,10 @@ CREATE DATABASE IF NOT EXISTS `ZOOP_DW`
 CREATE TABLE dim_tempo (
     sk_tempo INT PRIMARY KEY, -- Formato esperado: AAAAMMDD
     data DATE NOT NULL,
+    ano INT NOT NULL,
     mes INT NOT NULL,
     trimestre INT NOT NULL,
+    dia INT NOT NULL,
     dia_util BOOLEAN NOT NULL
 );
 
