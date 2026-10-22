@@ -6,6 +6,7 @@
 ![Pandas](https://img.shields.io/badge/Pandas-Data_Processing-150458?logo=pandas)
 
 ## 📌 Sobre o Projeto
+
 Este projeto simula um cenário real da empresa **Zoop**, onde as consultas analíticas estavam a onerar o banco de dados transacional (OLTP) de produção.
 
 Para resolver o problema, foi desenvolvida uma **plataforma analítica local end-to-end**, que extrai os dados brutos (sujos e duplicados), processa-os através de um **Data Lake em camadas (Bronze, Prata e Ouro)** utilizando o formato colunar Parquet, e disponibiliza-os num **Data Warehouse Dimensional (Star Schema)**. O projeto inclui o tratamento rigoroso de qualidade de dados e a implementação de histórico de clientes via **SCD (Slowly Changing Dimension) Tipo 2**.
@@ -28,6 +29,7 @@ Para resolver o problema, foi desenvolvida uma **plataforma analítica local end
 Todo o pipeline foi construído para rodar localmente, sem custos com nuvem, utilizando contentores Docker.
 
 ### Pré-requisitos
+
 * [Docker e Docker Compose](https://www.docker.com/)
 * [Python 3.12+](https://www.python.org/)
 * Git
@@ -35,6 +37,7 @@ Todo o pipeline foi construído para rodar localmente, sem custos com nuvem, uti
 ### Passo a Passo
 
 1. **Clone o repositório:**
+
    ```bash
    git clone [https://github.com/SEU-USUARIO/zoop-data-pipeline.git](https://github.com/SEU-USUARIO/zoop-data-pipeline.git)
    cd zoop-data-pipeline
@@ -42,11 +45,13 @@ Todo o pipeline foi construído para rodar localmente, sem custos com nuvem, uti
 
 2. **Suba a infraestrutura de Bancos de Dados:**
    Serão instanciados dois bancos isolados na sua máquina (OLTP na porta 5432 e DW na porta 5433 para evitar conflitos).
+
    ```bash
    docker-compose up -d
    ```
 
 3. **Configure o Ambiente Virtual e Instale as Dependências:**
+
    ```bash
    python -m venv venv
    source venv/bin/activate  # No Windows use: venv\Scripts\activate
@@ -55,17 +60,19 @@ Todo o pipeline foi construído para rodar localmente, sem custos com nuvem, uti
 
 4. **Execute o Orquestrador Principal:**
    O script executará toda a esteira (OLTP -> Bronze -> Prata -> Ouro -> DW).
+
    ```bash
    python src/main.py
    ```
 
 ---
 
-## 📖 Catálogo de Dados (Data Warehouse)
+## 📋 Catálogo de Dados (Data Warehouse)
 
 O banco de dados analítico (`banco_dw`) foi estruturado num modelo estrela contendo as seguintes tabelas:
 
 ### `dim_cliente` (SCD Tipo 2)
+
 Armazena os clientes com controle de histórico de mudanças cadastrais (cidade e estado).
 
 | Campo           | Tipo      | Descrição                                                             |
@@ -80,6 +87,7 @@ Armazena os clientes com controle de histórico de mudanças cadastrais (cidade 
 | `flag_vigencia` | `BOOLEAN` | `True` se o registo é a versão atual, `False` se é registo histórico. |
 
 ### `dim_produto`
+
 Catálogo de produtos únicos.
 
 | Campo            | Tipo      | Descrição                                               |
@@ -91,17 +99,21 @@ Catálogo de produtos únicos.
 | `preco_unitario` | `DECIMAL` | Preço unitário base de tabela.                          |
 
 ### `dim_tempo`
+
 Dimensão de calendário derivada das datas dos pedidos.
 
 | Campo       | Tipo      | Descrição                                                |
 | :---------- | :-------- | :------------------------------------------------------- |
 | `sk_tempo`  | `INT`     | Surrogate Key em formato numérico YYYYMMDD.              |
 | `data`      | `DATE`    | Data correspondente do calendário.                       |
+| `ano`       | `INT`     | Ano correspondente                                       |
 | `mes`       | `INT`     | Mês do ano da transação.                                 |
 | `trimestre` | `INT`     | Trimestre correspondente (1 a 4).                        |
+| `dia`       | `INT`     | Dia do mês da transação.                                 |
 | `dia_util`  | `BOOLEAN` | `True` para dias de semana, `False` para fins de semana. |
 
 ### `fato_vendas`
+
 Tabela transacional granular ao nível de item do pedido.
 
 | Campo        | Tipo      | Descrição                                                       |
@@ -115,7 +127,7 @@ Tabela transacional granular ao nível de item do pedido.
 
 ---
 
-## 🔗 Linhagem de Dados (Data Lineage)
+## ➿ Linhagem de Dados (Data Lineage)
 
 O fluxo do indicador `faturamento_total` percorre o seguinte caminho, desde o transacional até à visualização no DW:
 
