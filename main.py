@@ -1,8 +1,8 @@
 import os
 import logging
-from src.extract import povoar_oltp, extrair_bronze
-from src.transform_silver import transformar_prata
-from src.transform_gold import transformar_ouro
+from src.extract import extrair_bronze, carregar_oltp
+from src.transform_silver import transformar_silver
+from src.transform_gold import transformar_gold
 from src.load_dw import carregar_dimensoes_e_fatos, transformar_scd2_clientes
 
 os.makedirs("logs", exist_ok=True)
@@ -17,12 +17,12 @@ def executar_pipeline():
     logging.info("--- INICIANDO PIPELINE ZOOP ---")
 
     # 1. OLTP e Bronze
-    povoar_oltp()
+    carregar_oltp()
     extrair_bronze()
 
     # 2. Prata e Ouro
-    transformar_prata()
-    transformar_ouro()
+    transformar_silver()
+    transformar_gold()
 
     # 3. Data Warehouse Dimensional
     carregar_dimensoes_e_fatos()
