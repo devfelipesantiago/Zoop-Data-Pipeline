@@ -16,19 +16,24 @@ logging.basicConfig(
 def executar_pipeline():
     logging.info("--- INICIANDO PIPELINE ZOOP ---")
 
-    # 1. OLTP e Bronze
-    carregar_oltp()
-    extrair_bronze()
+    try:
+        # 1. OLTP e Bronze
+        carregar_oltp()
+        extrair_bronze()
 
-    # 2. Prata e Ouro
-    transformar_silver()
-    transformar_gold()
+        # 2. Silver e Gold
+        transformar_silver()
+        transformar_gold()
 
-    # 3. Data Warehouse Dimensional
-    carregar_dimensoes_e_fatos()
-    transformar_scd2_clientes()
+        # 3. Data Warehouse Dimensional
+        carregar_dimensoes_e_fatos()
+        transformar_scd2_clientes()
 
-    logging.info("--- PIPELINE FINALIZADO COM SUCESSO ---")
+        logging.info("--- PIPELINE FINALIZADO COM SUCESSO ---")
+
+    except Exception as e:
+        logging.error("--- PIPELINE FALHOU: %s ---", e)
+        raise
 
 
 if __name__ == "__main__":

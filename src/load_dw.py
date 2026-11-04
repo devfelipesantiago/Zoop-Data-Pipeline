@@ -2,13 +2,13 @@ import pandas as pd
 import logging
 from sqlalchemy import create_engine, text
 
-engine_dw = create_engine("postgresql+psycopg2://zoop:zoop123@localhost:5432/zoop_dw")
+engine_dw = create_engine("postgresql+psycopg2://zoop:zoop123@localhost:5433/zoop_dw")
 
 
 def carregar_dimensoes_e_fatos():
     logging.info("Iniciando carga inicial do Data Warehouse...")
     try:
-        df_prata = pd.read_parquet("datalake/prata/dados_consolidados.parquet")
+        df_prata = pd.read_parquet("datalake/silver/dados_consolidados.parquet")
 
         # --- DIMENSÃO TEMPO ---
         dim_tempo = (
@@ -142,35 +142,37 @@ def transformar_scd2_clientes():
                 cod = row["id_cliente"]
                 data_atu = pd.to_datetime(row["data_atualizacao"])
 
-            # Fechar a vigência do registro antigo diretamente via comando SQL
-            query_update = text("""
-                UPDATE dim_cliente
-                SET valid_to = :data, flag_vigencia = False
-                WHERE cod_cliente = :cod AND flag_vigencia = True
-            """)
-            connection.execute(query_update, {"data": data_atu, "cod": cod})
+                # Fechar a vigência do registro antigo diretamente via comando SQL
+                query_update = text(
+                    """
+                    UPDATE dim_cliente
+                    SET valid_to = :data, flag_vigencia = False
+                    WHERE cod_cliente = :cod AND flag_vigencia = True
+                """
+                )
+                connection.execute(query_update, {"data": data_atu, "cod": cod})
 
-            # Encontrar o registro antigo no DataFrame em memória e fechar a vigência
-            idx_antigo = dim_cliente.index[
-                (dim_cliente["cod_cliente"] == cod)
-                & (dim_cliente["flag_vigencia"] == True)
-            ].tolist()
-            if idx_antigo:
-                dim_cliente.at[idx_antigo[0], "valid_to"] = data_atu
-                dim_cliente.at[idx_antigo[0], "flag_vigencia"] = False
+                # Encontrar o registro antigo no DataFrame em memória e fechar a vigência
+                idx_antigo = dim_cliente.index[
+                    (dim_cliente["cod_cliente"] == cod)
+                    & (dim_cliente["flag_vigencia"] == True)
+                ].tolist()
+                if idx_antigo:
+                    dim_cliente.at[idx_antigo[0], "valid_to"] = data_atu
+                    dim_cliente.at[idx_antigo[0], "flag_vigencia"] = False
 
-            # Criar a nova versão do registro
-            novo_registro = {
-                "sk_cliente": int(max_sk) + len(novos_registros) + 1,
-                "cod_cliente": cod,
-                "nome": row["nome"],
-                "cidade": row["cidade"],
-                "estado": row["estado"],
-                "valid_from": data_atu,
-                "valid_to": pd.to_datetime("9999-12-31"),
-                "flag_vigencia": True,
-            }
-            novos_registros.append(novo_registro)
+                # Criar a nova versão do registro
+                novo_registro = {
+                    "sk_cliente": int(max_sk) + len(novos_registros) + 1,
+                    "cod_cliente": cod,
+                    "nome": row["nome"],
+                    "cidade": row["cidade"],
+                    "estado": row["estado"],
+                    "valid_from": data_atu,
+                    "valid_to": pd.to_datetime("9999-12-31"),
+                    "flag_vigencia": True,
+                }
+                novos_registros.append(novo_registro)
 
         # Adicionando as novas linhas ao DataFrame
         if novos_registros:
