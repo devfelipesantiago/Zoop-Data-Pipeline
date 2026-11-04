@@ -1,149 +1,170 @@
-# Zoop Data Pipeline: Do Transacional ao Analítico
+# Zoop Data Pipeline — Do Transacional ao Analítico
 
 ![Python](https://img.shields.io/badge/Python-3.12+-blue?logo=python)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue?logo=postgresql)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)
-![Pandas](https://img.shields.io/badge/Pandas-Data_Processing-150458?logo=pandas)
+![Pandas](https://img.shields.io/badge/Pandas-2.x-150458?logo=pandas)
 
-## 📌 Sobre o Projeto
-
-Este projeto simula um cenário real da empresa **Zoop**, onde as consultas analíticas estavam a onerar o banco de dados transacional (OLTP) de produção.
-
-Para resolver o problema, foi desenvolvida uma **plataforma analítica local end-to-end**, que extrai os dados brutos (sujos e duplicados), processa-os através de um **Data Lake em camadas (Bronze, Prata e Ouro)** utilizando o formato colunar Parquet, e disponibiliza-os num **Data Warehouse Dimensional (Star Schema)**. O projeto inclui o tratamento rigoroso de qualidade de dados e a implementação de histórico de clientes via **SCD (Slowly Changing Dimension) Tipo 2**.
+Pipeline ETL end-to-end que resolve um problema real de separação entre ambiente operacional e analítico: extrair dados do banco transacional (OLTP), processar em um Data Lake local em camadas (Bronze → Silver → Gold) e carregar em um Data Warehouse dimensional (Star Schema) com controle de histórico via **SCD Tipo 2**.
 
 ---
 
-## ⚙️ Arquitetura da Solução
+## Problema de negócio
 
-1. **OLTP (PostgreSQL):** Banco relacional normalizado (3NF) simulando o ambiente de produção da Zoop.
-2. **Data Lake (Local/Parquet):**
-   * **Bronze:** Ingestão literal (raw data) extraída do OLTP.
-   * **Prata:** Limpeza, deduplicação, cruzamentos, tipagem e regras de qualidade (Data Quality).
-   * **Ouro:** Tabelas agregadas focadas no negócio (indicadores sumarizados).
-3. **Data Warehouse (PostgreSQL):** Modelagem dimensional em Star Schema com Surrogate Keys, separando fatos e dimensões para consultas OLAP eficientes.
+A **Zoop** (empresa fictícia) enfrentava um problema clássico: as consultas analíticas do time de dados rodavam diretamente no banco de produção, concorrendo com as transações operacionais e degradando a performance do sistema.
 
----
+Além disso, os dados brutos apresentavam inconsistências:
+- Registros com valores negativos de quantidade e valor
+- Pedidos com `id_cliente` inexistente (integridade referencial quebrada)
+- Clientes com cadastros duplicados
+- Pedidos marcados como `ABERTO` com vencimento já ultrapassado
 
-## 🚀 Como Executar o Projeto
-
-Todo o pipeline foi construído para rodar localmente, sem custos com nuvem, utilizando contentores Docker.
-
-### Pré-requisitos
-
-* [Docker e Docker Compose](https://www.docker.com/)
-* [Python 3.12+](https://www.python.org/)
-* Git
-
-### Passo a Passo
-
-1. **Clone o repositório:**
-
-   ```bash
-   git clone [https://github.com/SEU-USUARIO/zoop-data-pipeline.git](https://github.com/SEU-USUARIO/zoop-data-pipeline.git)
-   cd zoop-data-pipeline
-   ```
-
-2. **Suba a infraestrutura de Bancos de Dados:**
-   Serão instanciados dois bancos isolados na sua máquina (OLTP na porta 5432 e DW na porta 5433 para evitar conflitos).
-
-   ```bash
-   docker-compose up -d
-   ```
-
-3. **Configure o Ambiente Virtual e Instale as Dependências:**
-
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # No Windows use: venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
-
-4. **Execute o Orquestrador Principal:**
-   O script executará toda a esteira (OLTP -> Bronze -> Prata -> Ouro -> DW).
-
-   ```bash
-   python src/main.py
-   ```
+**Solução:** construir uma plataforma analítica local que separa o operacional do analítico, aplica regras de qualidade em cada etapa e disponibiliza dados confiáveis para consumo via DW.
 
 ---
 
-## 📋 Catálogo de Dados (Data Warehouse)
+## Arquitetura
 
-O banco de dados analítico (`banco_dw`) foi estruturado num modelo estrela contendo as seguintes tabelas:
+```
+CSV (dados brutos)
+      │
+      ▼
+┌─────────────┐        ┌──────────────────────────────────────┐
+│  PostgreSQL │        │           Data Lake (Parquet)        │
+│    OLTP     │──────► │  Bronze  │  Silver   │     Gold      │
+│  porta 5432 │  ETL   │  (raw)   │ (tratado) │  (agregado)   │
+└─────────────┘        └──────────────────────────────────────┘
+                                       │
+                                       ▼
+                              ┌─────────────────┐
+                              │  PostgreSQL DW  │
+                              │   Star Schema   │
+                              │   porta 5433    │
+                              └─────────────────┘
+```
 
-### `dim_cliente` (SCD Tipo 2)
+| Camada     | Responsabilidade                                                                          |
+| ---------- | ----------------------------------------------------------------------------------------- |
+| **Bronze** | Ingestão literal — dados extraídos do OLTP sem transformação, preservados em Parquet      |
+| **Silver** | Limpeza, deduplicação, tipagem, joins e regras de qualidade com log de auditoria          |
+| **Gold**   | Agregação por mês e categoria — indicadores pré-calculados prontos para análise           |
+| **DW**     | Modelo estrela com Surrogate Keys, FK entre fato e dimensões, SCD Tipo 2 na `dim_cliente` |
 
-Armazena os clientes com controle de histórico de mudanças cadastrais (cidade e estado).
+---
 
-| Campo           | Tipo      | Descrição                                                             |
-| :-------------- | :-------- | :-------------------------------------------------------------------- |
-| `sk_cliente`    | `INT`     | Surrogate Key e Chave Primária da dimensão.                           |
-| `cod_cliente`   | `INT`     | Chave natural (ID) oriunda do banco transacional.                     |
-| `nome`          | `VARCHAR` | Nome completo do cliente.                                             |
-| `cidade`        | `VARCHAR` | Cidade de residência.                                                 |
-| `estado`        | `VARCHAR` | Sigla do Estado (UF).                                                 |
-| `valid_from`    | `DATE`    | Data de início de vigência desta versão do cadastro.                  |
-| `valid_to`      | `DATE`    | Data de fim de vigência desta versão (`9999-12-31` se atual).         |
-| `flag_vigencia` | `BOOLEAN` | `True` se o registo é a versão atual, `False` se é registo histórico. |
+## Modelo dimensional (Star Schema)
 
-### `dim_produto`
-
-Catálogo de produtos únicos.
-
-| Campo            | Tipo      | Descrição                                               |
-| :--------------- | :-------- | :------------------------------------------------------ |
-| `sk_produto`     | `INT`     | Surrogate Key e Chave Primária.                         |
-| `cod_produto`    | `INT`     | Chave natural (ID_Produto) vinda do banco transacional. |
-| `nome_produto`   | `VARCHAR` | Nome descritivo do produto.                             |
-| `categoria`      | `VARCHAR` | Categoria na qual o produto se enquadra.                |
-| `preco_unitario` | `DECIMAL` | Preço unitário base de tabela.                          |
-
-### `dim_tempo`
-
-Dimensão de calendário derivada das datas dos pedidos.
-
-| Campo       | Tipo      | Descrição                                                |
-| :---------- | :-------- | :------------------------------------------------------- |
-| `sk_tempo`  | `INT`     | Surrogate Key em formato numérico YYYYMMDD.              |
-| `data`      | `DATE`    | Data correspondente do calendário.                       |
-| `ano`       | `INT`     | Ano correspondente                                       |
-| `mes`       | `INT`     | Mês do ano da transação.                                 |
-| `trimestre` | `INT`     | Trimestre correspondente (1 a 4).                        |
-| `dia`       | `INT`     | Dia do mês da transação.                                 |
-| `dia_util`  | `BOOLEAN` | `True` para dias de semana, `False` para fins de semana. |
+```
+                 dim_tempo
+                     │
+dim_produto ── fato_vendas ── dim_cliente (SCD Tipo 2)
+```
 
 ### `fato_vendas`
+Grão: uma linha por item de pedido.
 
-Tabela transacional granular ao nível de item do pedido.
+| Campo        | Tipo    | Descrição                                             |
+| ------------ | ------- | ----------------------------------------------------- |
+| `sk_cliente` | INT     | FK → `dim_cliente` (versão vigente na data da compra) |
+| `sk_produto` | INT     | FK → `dim_produto`                                    |
+| `sk_tempo`   | INT     | FK → `dim_tempo` (formato YYYYMMDD)                   |
+| `id_pedido`  | INT     | Chave natural para rastreabilidade                    |
+| `quantidade` | INT     | Itens comprados                                       |
+| `valor_item` | DECIMAL | Preço do item no momento da compra                    |
 
-| Campo        | Tipo      | Descrição                                                       |
-| :----------- | :-------- | :-------------------------------------------------------------- |
-| `sk_cliente` | `INT`     | FK apontando para a versão correta do cliente na `dim_cliente`. |
-| `sk_produto` | `INT`     | FK apontando para o item na `dim_produto`.                      |
-| `sk_tempo`   | `INT`     | FK apontando para a data da compra na `dim_tempo`.              |
-| `id_pedido`  | `INT`     | Código natural do pedido para auditoria e rastreio.             |
-| `quantidade` | `INT`     | Quantidade de itens comprados.                                  |
-| `valor_item` | `DECIMAL` | Preço fechado daquele item no momento exato da compra.          |
+### `dim_cliente` — SCD Tipo 2
+Mantém histórico de mudanças cadastrais (cidade, estado). A `fato_vendas` aponta sempre para a versão do cliente **vigente na data da compra**, garantindo análises históricas precisas.
+
+| Campo                      | Tipo    | Descrição                                       |
+| -------------------------- | ------- | ----------------------------------------------- |
+| `sk_cliente`               | INT PK  | Surrogate Key                                   |
+| `cod_cliente`              | INT     | Chave natural do OLTP                           |
+| `nome`, `cidade`, `estado` | VARCHAR | Dados cadastrais                                |
+| `valid_from`               | DATE    | Início da vigência                              |
+| `valid_to`                 | DATE    | Fim da vigência (`9999-12-31` = registro atual) |
+| `flag_vigencia`            | BOOLEAN | `True` se versão atual                          |
 
 ---
 
-## ➿ Linhagem de Dados (Data Lineage)
+## ✅ Regras de qualidade (camada Silver)
 
-O fluxo do indicador `faturamento_total` percorre o seguinte caminho, desde o transacional até à visualização no DW:
+Aplicadas em [`transform_silver.py`](src/transform_silver.py), com divergências registradas em [`logs/pipeline_execucao.log`](logs/pipeline_execucao.log):
 
-1. **Origem (OLTP):** Os dados físicos `quantidade` e `valor_item` nascem nas transações inseridas na tabela normalizada `pedido_item` no PostgreSQL.
-2. **Camada Bronze:** Extraídos sem transformações para o ficheiro `pedido_item.parquet` preservando a estrutura original.
-3. **Camada Prata:** Durante os cruzamentos lógicos (Join), calcula-se em memória o indicador base `faturamento_total = quantidade * valor_item`.
-4. **Camada Ouro:** O faturamento é materializado e pré-agregado por `ano_mes` e `categoria` no ficheiro `indicadores_mes_categoria.parquet`.
-5. **Data Warehouse (Analítico):** As grandezas base (`quantidade` e `valor_item`) são armazenadas na `fato_vendas`. Isso permite que os relatórios recalculem o faturamento de forma fatiada, cruzando livremente com atributos de clientes, localização e produtos.
+1. **Rejeição de negativos** — remove registros com `quantidade < 0` ou `valor_item < 0`
+2. **Integridade referencial** — descarta pedidos sem `id_cliente` rastreável
+3. **Deduplicação** — remove duplicatas completas nos cadastros
+4. **Auditoria de atrasos** — detecta e loga pedidos com status `ABERTO` e vencimento anterior à data de referência (`2024-06-15`), derivando o status correto `ATRASADO`
 
 ---
 
-## 🛡️ Regras de Qualidade Aplicadas
+## Estrutura do projeto
 
-Durante o processamento da Camada Prata (`transform_silver.py`), o pipeline aplica regras de negócio para garantir a higienização dos dados. Discrepâncias geram logs de auditoria na pasta `/logs`:
+```
+projeto-final/
+├── dados/                        # CSVs de entrada (simulam exportação do sistema)
+│   ├── clientes.csv
+│   ├── clientes_atualizacao.csv  # Mudanças cadastrais (input para SCD2)
+│   ├── pedidos.csv
+│   └── produtos.csv
+├── datalake/
+│   ├── bronze/                   # Dados brutos em Parquet
+│   ├── silver/                   # Dados tratados em Parquet
+│   └── gold/                     # Indicadores agregados em Parquet
+├── logs/
+│   └── pipeline_execucao.log     # Log de auditoria do pipeline
+├── sql/
+│   ├── 01_create_oltp.sql        # DDL do banco transacional
+│   └── 02_create_dw.sql          # DDL do Data Warehouse
+├── src/
+│   ├── main.py                   # Orquestrador — executa toda a esteira
+│   ├── extract.py                # Carga do OLTP + extração para Bronze
+│   ├── transform_silver.py       # Limpeza, qualidade e joins (Silver)
+│   ├── transform_gold.py         # Agregações de negócio (Gold)
+│   └── load_dw.py                # Carga dimensional + SCD Tipo 2
+├── docker-compose.yml            # Dois containers PostgreSQL (OLTP + DW)
+└── requirements.txt
+```
 
-1. **Remoção de Negativos:** Rejeição de registos inválidos contendo valores de `quantidade < 0` ou `valor_item < 0`.
-2. **Integridade Referencial:** Identificação e exclusão de pedidos órfãos, registados sem um `id_cliente` rastreável no catálogo de clientes.
-3. **Deduplicação Oficial:** Remoção de duplicidades completas nos cadastros.
-4. **Auditoria de Atrasos (Log):** Validação temporal utilizando a data de referência **15/06/2024**. O sistema deteta se o sistema transacional mantém o status "ABERTO" para compras cuja data de vencimento é anterior à referência, registando a divergência em log como um apontamento analítico de status "ATRASADO".
+---
+
+## Como executar
+
+### Pré-requisitos
+- [Docker e Docker Compose](https://www.docker.com/)
+- Python 3.12+
+
+### Passo a passo
+
+```bash
+# 1. Clone o repositório
+git clone https://github.com/SEU-USUARIO/zoop-data-pipeline.git
+cd zoop-data-pipeline
+
+# 2. Suba os dois bancos PostgreSQL (OLTP na 5432, DW na 5433)
+docker compose up -d
+
+# 3. Crie o ambiente virtual e instale as dependências
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# 4. Execute toda a esteira de uma vez
+python -m src.main
+```
+
+O pipeline executa na ordem: **OLTP → Bronze → Silver → Gold → DW (dimensões + SCD2)**.
+Acompanhe a execução em tempo real no arquivo `logs/pipeline_execucao.log`.
+
+---
+
+## Stack utilizada
+
+| Ferramenta     | Uso                                 |
+| -------------- | ----------------------------------- |
+| Python 3.12    | Linguagem principal                 |
+| Pandas         | Transformações e qualidade de dados |
+| PyArrow        | Leitura/escrita de Parquet          |
+| SQLAlchemy     | Conexão com PostgreSQL              |
+| psycopg2       | Driver PostgreSQL                   |
+| Docker Compose | Infraestrutura local (OLTP + DW)    |
+| PostgreSQL 16  | Banco transacional e analítico      |
