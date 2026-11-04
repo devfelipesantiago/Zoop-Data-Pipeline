@@ -137,7 +137,7 @@ projeto-final/
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/SEU-USUARIO/zoop-data-pipeline.git
+git clone git@github.com:devfelipesantiago/Zoop-Data-Pipeline.git
 cd zoop-data-pipeline
 
 # 2. Suba os dois bancos PostgreSQL (OLTP na 5432, DW na 5433)
