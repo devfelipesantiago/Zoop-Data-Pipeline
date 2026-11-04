@@ -143,13 +143,11 @@ def transformar_scd2_clientes():
                 data_atu = pd.to_datetime(row["data_atualizacao"])
 
                 # Fechar a vigência do registro antigo diretamente via comando SQL
-                query_update = text(
-                    """
+                query_update = text("""
                     UPDATE dim_cliente
                     SET valid_to = :data, flag_vigencia = False
                     WHERE cod_cliente = :cod AND flag_vigencia = True
-                """
-                )
+                """)
                 connection.execute(query_update, {"data": data_atu, "cod": cod})
 
                 # Encontrar o registro antigo no DataFrame em memória e fechar a vigência
